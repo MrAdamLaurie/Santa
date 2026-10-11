@@ -135,7 +135,7 @@ pre.log{margin:8px 0 0;max-height:260px;overflow:auto;font:12px/1.4 ui-monospace
       </select>
     </label>
     <p class="hint" style="margin-top:6px">Mono MP3; the Santa has one speaker. Higher quality means a bigger file and a longer send.</p>
-    <label class="check"><input type="checkbox" id="jawChk" checked><span>Move the jaw to the audio <span class="hint">(first 30 seconds, like the app)</span></span></label>
+    <label class="check"><input type="checkbox" id="jawChk" checked><span>Move the jaw to the audio <span class="hint" id="jawHint">(first 30 seconds, like the app)</span></span></label>
     <label class="check"><input type="checkbox" id="playlistChk" checked><span>Add it to the playlist so it plays when triggered</span></label>
     <label class="check"><input type="checkbox" id="normChk" checked><span>Normalize the volume</span></label>
     <label class="check"><input type="checkbox" id="replaceChk"><span>Replace a sound with the same name</span></label>
@@ -187,6 +187,14 @@ pre.log{margin:8px 0 0;max-height:260px;overflow:auto;font:12px/1.4 ui-monospace
         </select>
       </label>
     </div>
+    <label class="field"><span>Jaw movement length</span>
+      <select id="jawLenSel">
+        <option value="62" selected>30 seconds (the app's limit)</option>
+        <option value="125">1 minute (experimental)</option>
+        <option value="255">2 minutes (experimental, the most the Santa accepts)</option>
+      </select>
+    </label>
+    <p class="hint" style="margin-top:6px">The app never sends more than 30 seconds of jaw movement, so longer settings are untested. If other sounds start acting strangely afterwards, delete the long one or reset the Santa in the DecorPro app.</p>
     <label class="check"><input type="checkbox" id="verboseChk"><span>Log every Bluetooth packet</span></label>
     <p class="hint" style="margin-top:10px">If uploads stall or keep asking for resends, try 240-byte packets and a 100 ms gap.</p>
   </details>
@@ -520,7 +528,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const NEW_PAGE = ['Lilly', 'Lethal Lily', 'Skelly3', '12ft Skelly', 'Harvester', 'Ultra Skelly v2', 'Santa Claus', 'Ultra Santa'];
   const OLD_PAGE = ['Animated Skelly', '12ft Skeleton', 'Medusa', 'Headless Horseman', 'Connectivity Santa', 'Nightshade Witch', 'Reaper', 'App Reaper'];
   const FACTORY = /^Default Sound \d*\.mp3$/i;
-  const LIMITS = { files: 30, playlist: 10, name: 15, jawBytes: 62, jawFrameMs: 60 };
+  const LIMITS = { files: 30, playlist: 10, name: 15, jawBytes: 62, jawBytesMax: 255, jawFrameMs: 60 };
 
   class SantaError extends Error {}
   const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -955,7 +963,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     const durationMs = Math.round(n / info.rate * 1000);
     return { jaw: root.SantaCore.jawData(pcm, durationMs), durationMs, info };
   }
-  async function prepare(file, { quality, normalizeVolume, jaw }, onStage, signal) {
+  async function prepare(file, { quality, normalizeVolume, jaw, jawLimit }, onStage, signal) {
     onStage('Reading file', 0);
     const buf = await file.arrayBuffer();
     let mp3;
@@ -976,7 +984,9 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     onStage('Working out jaw movement', 1);
     const r = await jawFromMp3(mp3);
     let jawBytes = null;
-    if (jaw) jawBytes = r.jaw.subarray(0, root.SantaCore.LIMITS.jawBytes);   // the app never sends more than ~30 s
+    const L = root.SantaCore.LIMITS;
+    const limit = Math.min(L.jawBytesMax, Math.max(1, jawLimit || L.jawBytes));   // the app never sends more than ~30 s
+    if (jaw) jawBytes = r.jaw.subarray(0, limit);
     return { mp3, jaw: jawBytes, durationMs: r.durationMs, info: r.info };
   }
   root.SantaAudio = { PRESETS, mp3Info, stripTags, prepare, encodeMp3, jawFromMp3 };
@@ -993,7 +1003,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     intro: $('intro'), deviceCard: $('deviceCard'), devName: $('devName'), refreshBtn: $('refreshBtn'),
     statFree: $('statFree'), statFiles: $('statFiles'), statPlaylist: $('statPlaylist'),
     fileInput: $('fileInput'), pickedName: $('pickedName'), nameInput: $('nameInput'), qualitySel: $('qualitySel'),
-    jawChk: $('jawChk'), playlistChk: $('playlistChk'), normChk: $('normChk'), replaceChk: $('replaceChk'),
+    jawChk: $('jawChk'), jawHint: $('jawHint'), jawLenSel: $('jawLenSel'), playlistChk: $('playlistChk'), normChk: $('normChk'), replaceChk: $('replaceChk'),
     sendBtn: $('sendBtn'), cancelBtn: $('cancelBtn'), progress: $('progress'), progStage: $('progStage'), progDetail: $('progDetail'), progBar: $('progBar'),
     files: $('files'), filesHint: $('filesHint'),
     writeModeSel: $('writeModeSel'), chunkSel: $('chunkSel'), delaySel: $('delaySel'), pickerSel: $('pickerSel'), verboseChk: $('verboseChk'),
@@ -1002,7 +1012,12 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
   const state = { device: null, writeChar: null, notifyChar: null, engine: null, files: [], order: [], freeKB: null, busy: false, abort: null, writeMode: 'with', file: null, lost: false };
 
   // ---------- settings (per-browser convenience only)
-  const SETTINGS = ['writeModeSel', 'chunkSel', 'delaySel', 'pickerSel', 'qualitySel'];
+  const SETTINGS = ['writeModeSel', 'chunkSel', 'delaySel', 'pickerSel', 'qualitySel', 'jawLenSel'];
+  const jawSeconds = () => Math.round(Number(el.jawLenSel.value) * 8 * LIMITS.jawFrameMs / 1000);
+  function updateJawHint() {
+    const s = jawSeconds();
+    el.jawHint.textContent = s <= 30 ? '(first 30 seconds, like the app)' : `(first ${s >= 120 ? '2 minutes' : s + ' seconds'}, experimental)`;
+  }
   function loadSettings() {
     try {
       const s = JSON.parse(localStorage.getItem('santa-controller') || '{}');
@@ -1286,7 +1301,7 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
       say('');
       applyEngineSettings();
       const prepared = await SantaAudio.prepare(state.file, {
-        quality: el.qualitySel.value, normalizeVolume: el.normChk.checked, jaw: el.jawChk.checked,
+        quality: el.qualitySel.value, normalizeVolume: el.normChk.checked, jaw: el.jawChk.checked, jawLimit: Number(el.jawLenSel.value),
       }, (stage, frac) => showProgress(stage, frac), ctrl.signal);
       const sizeKB = Math.ceil(prepared.mp3.length / 1000);
       log('info', `Prepared ${base}.mp3: ${fmtTime(prepared.durationMs / 1000)}, ${fmtKB(sizeKB)}, ${prepared.info.rate} Hz, ${prepared.info.kbps} kbps${prepared.jaw ? `, ${prepared.jaw.length} jaw bytes` : ''}`);
@@ -1310,7 +1325,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
         full: ' The playlist is full (10), so it was not added; remove one and tap its playlist button.',
         skipped: '',
       };
-      const jawNote = prepared.jaw && prepared.durationMs > 30500 ? ' The jaw moves for the first 30 seconds.' : '';
+      const jawSec = prepared.jaw ? prepared.jaw.length * 8 * LIMITS.jawFrameMs / 1000 : 0;
+      const jawNote = prepared.jaw && prepared.durationMs / 1000 > jawSec + 0.5 ? ` The jaw moves for the first ${Math.round(jawSec)} seconds.` : '';
       say(`Sent "${base}" (${fmtTime(prepared.durationMs / 1000)}).${notes[result.playlist] || ''}${jawNote}`, 'ok');
     });
     state.abort = null;
@@ -1344,7 +1360,8 @@ a.length>D&&(D=a.length,p=0|1.25*D+7200,r=new Int8Array(p));a=u.lame_encode_buff
     el.nameInput.addEventListener('blur', () => { el.nameInput.value = cleanName(el.nameInput.value); });
     el.sendBtn.addEventListener('click', send);
     el.cancelBtn.addEventListener('click', () => { if (state.abort) state.abort.abort(); el.cancelBtn.hidden = true; });
-    for (const k of ['writeModeSel', 'chunkSel', 'delaySel', 'pickerSel', 'qualitySel']) el[k].addEventListener('change', () => { saveSettings(); applyEngineSettings(); });
+    for (const k of SETTINGS) el[k].addEventListener('change', () => { saveSettings(); applyEngineSettings(); updateJawHint(); });
+    updateJawHint();
     el.verboseChk.addEventListener('change', saveSettings);
     el.copyLogBtn.addEventListener('click', async () => {
       try { await navigator.clipboard.writeText(el.log.textContent); say('Log copied.', 'ok'); } catch (e) { say("Couldn't copy; select the log text instead.", 'warn'); }
