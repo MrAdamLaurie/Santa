@@ -1,0 +1,997 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Santa Studio</title>
+<style>
+/* Layout: one connect bar on top, a tab rail, and a single scrolling control column.
+   Palette: charcoal workshop ground, warm gold accent, evergreen = go/connected, ember red = record/danger. */
+:root{
+  --bg:#14171c; --panel:#1b1f27; --panel-2:#232833; --line:#2e3542;
+  --fg:#eef1f5; --muted:#9aa4b2; --faint:#6b7585;
+  --gold:#e6b23e; --gold-ink:#241a06;
+  --pine:#38a06f; --pine-ink:#04120b;
+  --ember:#dd5146; --ember-ink:#2a0906;
+  --sky:#5aa6e0;
+  --radius:14px; --radius-sm:9px;
+  --shadow:0 1px 0 rgba(255,255,255,.03), 0 10px 30px -18px rgba(0,0,0,.8);
+  color-scheme:dark;
+  --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){
+  --bg:#f3f0e9; --panel:#ffffff; --panel-2:#f6f3ec; --line:#e4ddcf;
+  --fg:#241f17; --muted:#6b6354; --faint:#9a9284;
+  --gold:#b2821a; --gold-ink:#fff8e8;
+  --pine:#1f7d51; --pine-ink:#eafaf1;
+  --ember:#c23b30; --ember-ink:#fff0ee;
+  --sky:#2f6fb0;
+  --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 28px -20px rgba(80,60,20,.45);
+  color-scheme:light;
+}}
+:root[data-theme="light"]{
+  --bg:#f3f0e9; --panel:#ffffff; --panel-2:#f6f3ec; --line:#e4ddcf;
+  --fg:#241f17; --muted:#6b6354; --faint:#9a9284;
+  --gold:#b2821a; --gold-ink:#fff8e8;
+  --pine:#1f7d51; --pine-ink:#eafaf1;
+  --ember:#c23b30; --ember-ink:#fff0ee;
+  --sky:#2f6fb0;
+  --shadow:0 1px 0 rgba(255,255,255,.6), 0 12px 28px -20px rgba(80,60,20,.45);
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);line-height:1.5;
+  -webkit-font-smoothing:antialiased}
+.wrap{max-width:860px;margin:0 auto;padding:0 16px;padding-block:0 48px}
+h1,h2,h3{text-wrap:balance;margin:0}
+button{font-family:inherit;font-size:1rem;cursor:pointer;border:none;background:none;color:inherit}
+label{font-size:.82rem;color:var(--muted)}
+.eyebrow{font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:700}
+
+/* ---- top bar ---- */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:12px;padding-block:11px;min-height:60px}
+.brand{display:flex;align-items:center;gap:10px;margin-right:auto;min-width:0}
+.brand .mark{width:30px;height:30px;border-radius:8px;flex:0 0 auto;display:grid;place-items:center;
+  background:radial-gradient(120% 120% at 30% 20%,var(--ember),#8f2a22);box-shadow:inset 0 0 0 1px rgba(255,255,255,.12);font-size:16px}
+.brand b{font-size:1.02rem;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.brand small{display:block;color:var(--faint);font-size:.68rem;letter-spacing:.04em;margin-top:-2px}
+.statuschip{display:inline-flex;align-items:center;gap:7px;font-size:.78rem;font-weight:600;color:var(--muted);
+  padding:5px 10px;border:1px solid var(--line);border-radius:999px;background:var(--panel);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:0 0 auto;transition:background .3s}
+.dot.on{background:var(--pine);box-shadow:0 0 0 3px color-mix(in srgb,var(--pine) 30%,transparent)}
+.dot.busy{background:var(--gold);animation:pulse 1s infinite}
+@keyframes pulse{50%{opacity:.35}}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:.9rem;
+  padding:9px 15px;border-radius:var(--radius-sm);background:var(--panel-2);color:var(--fg);
+  border:1px solid var(--line);transition:transform .06s,filter .15s,background .15s}
+.btn:hover{filter:brightness(1.08)}.btn:active{transform:translateY(1px)}
+.btn[disabled]{opacity:.42;cursor:not-allowed;filter:none}
+.btn.go{background:var(--pine);color:var(--pine-ink);border-color:transparent}
+.btn.gold{background:var(--gold);color:var(--gold-ink);border-color:transparent}
+.btn.danger{background:transparent;color:var(--ember);border-color:color-mix(in srgb,var(--ember) 50%,var(--line))}
+.btn.danger:hover{background:color-mix(in srgb,var(--ember) 14%,transparent);filter:none}
+.btn.rec{background:var(--ember);color:var(--ember-ink);border-color:transparent}
+.btn.ghost{background:transparent}
+.btn.sm{padding:6px 11px;font-size:.82rem}
+
+/* ---- banners ---- */
+.note{display:flex;gap:11px;align-items:flex-start;background:var(--panel);border:1px solid var(--line);
+  border-left:3px solid var(--gold);border-radius:var(--radius-sm);padding:12px 14px;margin:16px 0;font-size:.86rem;color:var(--muted)}
+.note b{color:var(--fg)}
+.note .x{font-size:1.1rem;line-height:1;flex:0 0 auto}
+
+/* ---- tabs ---- */
+.tabs{display:flex;gap:4px;overflow-x:auto;padding:14px 0 2px;position:sticky;
+  top:calc(env(safe-area-inset-top,0px) + 60px);z-index:30;background:var(--bg);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:0 0 auto;padding:8px 14px;border-radius:999px;font-weight:600;font-size:.86rem;color:var(--muted);
+  border:1px solid transparent;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--fg);background:var(--panel);border-color:var(--line)}
+.panel-view{display:flex;flex-direction:column;gap:16px;padding-top:4px}
+
+/* ---- cards ---- */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.card>.hd{display:flex;align-items:center;gap:10px;padding:14px 16px 10px}
+.card>.hd h3{font-size:.98rem;font-weight:700;letter-spacing:-.01em}
+.card>.hd .sub{color:var(--faint);font-size:.78rem}
+.card>.bd{padding:4px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.spread{display:flex;gap:10px;flex-wrap:wrap}
+.grow{flex:1 1 auto;min-width:0}
+.muted{color:var(--muted)}.faint{color:var(--faint)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+hr.sep{border:none;border-top:1px solid var(--line);margin:2px 0}
+
+/* sliders */
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:8px;border-radius:999px;
+  background:linear-gradient(90deg,var(--gold) var(--pct,50%),var(--line) var(--pct,50%))}
+input[type=range]::-moz-range-track{height:8px;border-radius:999px;background:var(--line)}
+input[type=range]::-moz-range-progress{height:8px;border-radius:999px;background:var(--gold)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;margin-top:-7px;
+  background:var(--fg);border:3px solid var(--panel);box-shadow:0 2px 6px rgba(0,0,0,.4)}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;background:var(--fg);border:3px solid var(--panel)}
+.bigval{font-family:var(--mono);font-size:1.5rem;font-weight:700;font-variant-numeric:tabular-nums;min-width:2.6ch;text-align:right}
+
+/* transport */
+.transport{display:flex;align-items:center;justify-content:center;gap:14px}
+.tbtn{width:52px;height:52px;border-radius:50%;background:var(--panel-2);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:18px}
+.tbtn.main{width:66px;height:66px;background:var(--gold);color:var(--gold-ink);border-color:transparent;font-size:24px}
+
+/* text input */
+input[type=text],input[type=password],select{width:100%;padding:10px 12px;border-radius:var(--radius-sm);
+  background:var(--panel-2);border:1px solid var(--line);color:var(--fg);font-family:inherit;font-size:.92rem}
+input:focus-visible,select:focus-visible,.tab:focus-visible,.btn:focus-visible,.swatch:focus-visible{
+  outline:2px solid var(--sky);outline-offset:2px}
+.field{display:flex;flex-direction:column;gap:6px}
+
+/* tracks */
+.track{display:flex;align-items:center;gap:12px;padding:11px 12px;border:1px solid var(--line);
+  border-radius:var(--radius-sm);background:var(--panel-2)}
+.track .play{width:38px;height:38px;border-radius:9px;flex:0 0 auto;background:var(--panel);border:1px solid var(--line);
+  display:grid;place-items:center;font-size:14px}
+.track.playing{border-color:color-mix(in srgb,var(--pine) 55%,var(--line))}
+.track.playing .play{background:var(--pine);color:var(--pine-ink);border-color:transparent}
+.track .nm{font-weight:600;font-size:.92rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.track .meta{font-size:.72rem;color:var(--faint)}
+.pill{font-size:.64rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;padding:2px 7px;border-radius:999px;
+  background:color-mix(in srgb,var(--gold) 18%,transparent);color:var(--gold);white-space:nowrap}
+.pill.inplay{background:color-mix(in srgb,var(--pine) 20%,transparent);color:var(--pine)}
+.iconbtn{width:34px;height:34px;flex:0 0 auto;border-radius:8px;background:transparent;border:1px solid var(--line);
+  display:grid;place-items:center;color:var(--muted);font-size:14px}
+.iconbtn:hover{color:var(--fg)}
+.iconbtn.del:hover{color:var(--ember);border-color:var(--ember)}
+
+/* color grid */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(42px,1fr));gap:9px}
+.swatch{aspect-ratio:1;border-radius:10px;border:2px solid transparent;box-shadow:inset 0 0 0 1px rgba(0,0,0,.25)}
+.swatch[aria-pressed="true"]{border-color:var(--fg);transform:scale(1.04)}
+.seg{display:flex;background:var(--panel-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:3px;gap:3px}
+.seg button{flex:1;padding:8px;border-radius:7px;font-size:.84rem;font-weight:600;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--gold);color:var(--gold-ink)}
+.toggles{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:9px}
+.tog{padding:13px 10px;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--panel-2);
+  font-weight:650;font-size:.86rem;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
+.tog .ic{font-size:20px}
+.tog[aria-pressed="true"]{background:color-mix(in srgb,var(--gold) 16%,var(--panel-2));border-color:var(--gold);color:var(--fg)}
+
+/* progress */
+.bar{height:9px;border-radius:999px;background:var(--line);overflow:hidden}
+.bar>i{display:block;height:100%;width:0;background:var(--gold);transition:width .18s}
+
+/* log */
+.logwrap{max-height:220px;overflow:auto;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm);
+  padding:10px 12px;font-family:var(--mono);font-size:.72rem;line-height:1.7}
+.logwrap div{white-space:pre-wrap;word-break:break-all}
+.logwrap .tx{color:var(--sky)} .logwrap .rx{color:var(--pine)} .logwrap .er{color:var(--ember)} .logwrap .in{color:var(--faint)}
+
+/* modal */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:100;padding:20px}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);max-width:400px;width:100%;
+  padding:20px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:14px}
+.modal h3{font-size:1.05rem}
+.disabledmask{opacity:.5;pointer-events:none}
+.hintrow{font-size:.78rem;color:var(--faint)}
+.waveform{width:100%;height:60px;display:block;background:var(--bg);border:1px solid var(--line);border-radius:var(--radius-sm)}
+@media (max-width:460px){ .bigval{font-size:1.25rem} .brand small{display:none} }
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="wrap">
+  <div class="brand">
+    <span class="mark" aria-hidden="true">🎅</span>
+    <span class="grow"><b>Santa Studio</b><small>Bluetooth control for your animatronic</small></span>
+  </div>
+  <span class="statuschip"><span class="dot" id="dot"></span><span id="statusTxt">Not connected</span></span>
+  <button class="btn go" id="connectBtn">Connect</button>
+</div></div>
+
+<div class="wrap">
+
+  <div class="note" id="introNote">
+    <span class="x" aria-hidden="true">⚠︎</span>
+    <div>
+      <b>Open this file in Chrome or Edge</b> on a computer or Android phone, then tap Connect — Bluetooth control
+      needs those browsers (it won't work on iPhone/Safari). Everything here was rebuilt from the official app's
+      own commands; the common controls are solid, but since I couldn't test against a real Santa, use the
+      <b>live log</b> at the bottom to watch what it sends and flag anything that misbehaves.
+    </div>
+  </div>
+
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button class="tab" role="tab" aria-selected="true"  data-tab="play">Playback</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="voice">Voice Studio</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="lights">Lights</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="move">Movement</button>
+    <button class="tab" role="tab" aria-selected="false" data-tab="settings">Settings</button>
+  </nav>
+
+  <!-- ============ PLAYBACK ============ -->
+  <section class="panel-view" id="view-play">
+    <div class="card"><div class="bd">
+      <div class="row between">
+        <div><div class="eyebrow">Now on the Santa</div>
+          <div id="nowPlaying" style="font-weight:700;font-size:1.05rem;margin-top:2px">—</div></div>
+        <span class="statuschip"><span>🗣</span><span id="demoState">Idle</span></span>
+      </div>
+      <div class="transport">
+        <button class="tbtn" id="prevBtn" title="Previous" disabled>⏮</button>
+        <button class="tbtn main" id="playBtn" title="Play / pause" disabled>▶</button>
+        <button class="tbtn" id="nextBtn" title="Next" disabled>⏭</button>
+      </div>
+    </div></div>
+
+    <div class="card"><div class="bd">
+      <div class="row between"><label for="vol">Volume</label><span class="bigval"><span id="volVal">—</span></span></div>
+      <input type="range" id="vol" min="0" max="100" value="60" disabled>
+    </div></div>
+
+    <div class="card">
+      <div class="hd"><h3>Track library</h3><span class="sub grow" id="libCount"></span>
+        <button class="btn sm ghost" id="refreshLib" disabled>↻ Refresh</button></div>
+      <div class="bd" id="trackList">
+        <p class="muted" style="margin:0">Connect to load the clips stored on your Santa. Tap a clip to play it;
+          star it to add it to the rotation the Santa cycles through.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ VOICE STUDIO ============ -->
+  <section class="panel-view" id="view-voice" hidden>
+    <div class="note" style="border-left-color:var(--sky)">
+      <span class="x" aria-hidden="true">ℹ︎</span>
+      <div>Bluetooth only lets the app <b>send audio to</b> the Santa — there's no command to pull its built-in
+        clips back off, so I can't sample its onboard voice directly. What this studio does instead: take a clean
+        recording (or a file), tidy and shape it, and send it over as a new clip. For a true Santa-style voice you
+        can plug in your own ElevenLabs key below (the app uses that service under the hood).</div>
+    </div>
+
+    <div class="card">
+      <div class="hd"><h3>1 · Source audio</h3><span class="sub grow">record or drop in a file</span></div>
+      <div class="bd">
+        <div class="spread">
+          <button class="btn rec" id="recBtn">● Record</button>
+          <button class="btn" id="pickBtn">📁 Choose file</button>
+          <input type="file" id="fileInput" accept="audio/*" hidden>
+          <span class="hintrow grow" id="recHint" style="align-self:center">Up to ~30s works best.</span>
+        </div>
+        <canvas class="waveform" id="wave" width="800" height="120" hidden></canvas>
+        <div class="row" id="srcRow" hidden>
+          <button class="btn sm ghost" id="previewSrc">▶ Preview</button>
+          <span class="mono faint" id="srcInfo"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" id="shapeCard">
+      <div class="hd"><h3>2 · Clean &amp; shape</h3><span class="sub grow">EQ and dynamics, not a clone</span></div>
+      <div class="bd">
+        <div class="field"><div class="row between"><label for="pitch">Depth (pitch)</label><span class="mono" id="pitchVal">0</span></div>
+          <input type="range" id="pitch" min="-6" max="4" value="0" step="1"></div>
+        <div class="field"><div class="row between"><label for="warmth">Warmth</label><span class="mono" id="warmthVal">40%</span></div>
+          <input type="range" id="warmth" min="0" max="100" value="40"></div>
+        <div class="row between"><label for="gate">Noise cleanup</label>
+          <span class="seg" style="flex:0 0 auto" id="gateSeg" role="group" aria-label="Noise cleanup">
+            <button data-g="0" aria-pressed="true">Off</button>
+            <button data-g="1">Light</button>
+            <button data-g="2">Strong</button></span></div>
+        <label class="row" style="gap:8px"><input type="checkbox" id="normChk" checked style="width:auto"> Normalize loudness</label>
+        <div class="row"><button class="btn gold grow" id="previewShaped" disabled>▶ Preview result</button></div>
+      </div>
+    </div>
+
+    <details class="card" id="elCard" style="padding:0">
+      <summary class="hd" style="cursor:pointer;list-style:none"><h3>Pro voice · ElevenLabs <span class="pill">optional</span></h3>
+        <span class="sub grow">your own API key</span><span aria-hidden="true">▾</span></summary>
+      <div class="bd">
+        <div class="field"><label for="elKey">ElevenLabs API key (kept in this browser only)</label>
+          <input type="password" id="elKey" placeholder="xi-..." autocomplete="off"></div>
+        <div class="spread"><button class="btn sm" id="elLoad">Load my voices</button>
+          <select id="elVoice" style="flex:1 1 180px" disabled><option>— load voices first —</option></select></div>
+        <button class="btn" id="elConvert" disabled>Convert source with this voice →</button>
+        <p class="hintrow" style="margin:0">Pick a deep, warm voice (or add a "Santa" voice from the ElevenLabs Voice
+          Library to your account first). The result drops back into step 1 so you can still clean it up.</p>
+      </div>
+    </details>
+
+    <div class="card">
+      <div class="hd"><h3>3 · Send to Santa</h3><span class="sub grow">saves as a clip you can play</span></div>
+      <div class="bd">
+        <div class="field"><label for="clipName">Clip name (max 15 characters)</label>
+          <input type="text" id="clipName" maxlength="15" placeholder="My Santa"></div>
+        <label class="row" style="gap:8px"><input type="checkbox" id="mouthChk" checked style="width:auto">
+          Generate mouth-movement sync</label>
+        <div id="upProg" hidden><div class="row between"><span class="mono faint" id="upMsg">Preparing…</span>
+          <span class="mono" id="upPct">0%</span></div><div class="bar"><i id="upBar"></i></div></div>
+        <button class="btn go" id="uploadBtn" disabled>Send clip to Santa</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ LIGHTS ============ -->
+  <section class="panel-view" id="view-lights" hidden>
+    <div class="card"><div class="bd" id="lightsBody">
+      <div class="row between"><h3 style="font-size:.98rem">Live lights</h3>
+        <span class="seg" style="flex:0 0 auto" id="scenes" role="group" aria-label="Scene">
+          <button data-scene="custom" aria-pressed="true">Custom</button>
+          <button data-scene="hall">Halloween</button>
+          <button data-scene="xmas">Christmas</button></span></div>
+
+      <div class="swatches" id="swatches"></div>
+
+      <div class="field"><div class="row between"><label>Effect</label></div>
+        <span class="seg" id="modeSeg" role="group" aria-label="Light effect">
+          <button data-mode="1" aria-pressed="true">Static</button>
+          <button data-mode="2">Sparkle</button>
+          <button data-mode="3">Pulsing</button></span></div>
+
+      <div class="field"><div class="row between"><label for="bri">Brightness</label><span class="mono" id="briVal">100%</span></div>
+        <input type="range" id="bri" min="0" max="255" value="255"></div>
+
+      <div class="field" id="speedField"><div class="row between"><label for="spd">Speed</label><span class="mono" id="spdVal">5</span></div>
+        <input type="range" id="spd" min="0" max="10" value="5"></div>
+    </div></div>
+    <p class="hintrow" style="margin:-4px 2px 0">Santa controls all of its light channels together. Changes apply to
+      the live show; use the Voice Studio if you want lights tied to a specific clip.</p>
+  </section>
+
+  <!-- ============ MOVEMENT ============ -->
+  <section class="panel-view" id="view-move" hidden>
+    <div class="card">
+      <div class="hd"><h3>Live movement</h3><span class="sub grow">what moves while it speaks</span></div>
+      <div class="bd">
+        <div class="toggles" id="moveToggles"></div>
+        <div class="row"><button class="btn sm ghost" id="moveAll">Select all</button>
+          <button class="btn sm ghost" id="moveNone">Freeze all</button></div>
+      </div>
+    </div>
+    <p class="hintrow" style="margin:-4px 2px 0">Toggles send instantly while you're connected.</p>
+  </section>
+
+  <!-- ============ SETTINGS ============ -->
+  <section class="panel-view" id="view-settings" hidden>
+    <div class="card">
+      <div class="hd"><h3>Device</h3></div>
+      <div class="bd">
+        <div class="row between"><span class="muted">Bluetooth name</span><span class="mono" id="devName">—</span></div>
+        <div class="row between"><span class="muted">Free storage</span><span class="mono" id="devCap">—</span></div>
+        <div class="row between"><span class="muted">Clips stored</span><span class="mono" id="devClips">—</span></div>
+        <div class="row between"><span class="muted">Demo mode</span><span class="mono" id="devDemo">—</span></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd"><h3>Rename the speaker</h3><span class="sub grow">its Bluetooth-audio name</span></div>
+      <div class="bd">
+        <div class="field"><label for="newName">New name (max 22 characters)</label>
+          <input type="text" id="newName" maxlength="22" placeholder="Santa"></div>
+        <div class="row">
+          <div class="field grow"><label for="pin">PIN (4+ digits)</label><input type="text" id="pin" maxlength="6" value="0000" inputmode="numeric"></div>
+        </div>
+        <button class="btn" id="renameBtn" disabled>Rename</button>
+        <p class="hintrow" style="margin:0">Renaming re-pairs the classic-Bluetooth speaker. The app appends "(Live)"
+          automatically for the live-talk mode.</p>
+      </div>
+    </div>
+    <div class="card">
+      <div class="hd"><h3>Appearance</h3></div>
+      <div class="bd"><div class="row between"><span class="muted">Theme</span>
+        <span class="seg" style="flex:0 0 auto" id="themeSeg" role="group" aria-label="Theme">
+          <button data-th="auto" aria-pressed="true">Auto</button>
+          <button data-th="light">Light</button>
+          <button data-th="dark">Dark</button></span></div></div>
+    </div>
+    <div class="card" style="border-color:color-mix(in srgb,var(--ember) 30%,var(--line))">
+      <div class="hd"><h3>Reset to factory</h3><span class="sub grow">erases every custom clip</span></div>
+      <div class="bd"><button class="btn danger" id="resetBtn" disabled>Erase &amp; reset Santa…</button></div>
+    </div>
+  </section>
+
+  <div class="card" style="margin-top:20px">
+    <div class="hd"><h3>Live log</h3><span class="sub grow">raw Bluetooth traffic</span>
+      <button class="btn sm ghost" id="clearLog">Clear</button></div>
+    <div class="bd"><div class="logwrap" id="log"><div class="in">Waiting to connect…</div></div></div>
+  </div>
+
+  <p class="hintrow" style="text-align:center;margin:22px 0 0">
+    Rebuilt from the DecorPro / SVI app protocol for personal use with your own device. Not affiliated with the maker.</p>
+</div>
+
+<div id="modalHost"></div>
+
+<script>
+"use strict";
+/* ============================================================
+   Santa Studio — Web Bluetooth controller
+   Protocol: service ae00 / write ae01 / notify ae02
+   Frame = AA + tag + content(padded to >=8 bytes) + CRC8(poly 0x8C, reflected)
+   ============================================================ */
+const SVC    = '0000ae00-0000-1000-8000-00805f9b34fb';
+const WRITE  = '0000ae01-0000-1000-8000-00805f9b34fb';
+const NOTIFY = '0000ae02-0000-1000-8000-00805f9b34fb';
+const PRODUCTS = ['Santa Claus','Ultra Santa','Connectivity Santa','Animated Skelly','12ft Skeleton',
+  'Medusa','Headless Horseman','Nightshade Witch','Reaper','App Reaper','Lilly','Lethal Lily',
+  'Harvester','Skelly3','12ft Skelly','Ultra Skelly v2'];
+const MOVE_ACTIONS = [ // Santa Claus bitmask
+  {bit:1,name:'Eyes',ic:'👁'},{bit:2,name:'Head',ic:'🙂'},
+  {bit:4,name:'Torso',ic:'🧍'},{bit:8,name:'Arm',ic:'💪'}];
+
+const $ = s=>document.querySelector(s), $$=s=>Array.from(document.querySelectorAll(s));
+
+/* ---------- hex helpers ---------- */
+const oneByte = n => (n&0xff).toString(16).padStart(2,'0');
+const twoByte = n => (n&0xffff).toString(16).padStart(4,'0');       // big-endian
+const fourByte= n => ((n>>>0)).toString(16).padStart(8,'0');        // big-endian
+function hexToBytes(h){const a=new Uint8Array(h.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(h.substr(i*2,2),16);return a;}
+function bytesToHex(b){let s='';for(const x of b)s+=x.toString(16).padStart(2,'0');return s;}
+function utf16leHex(str){let h='';for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h+=oneByte(c&0xff)+oneByte((c>>8)&0xff);}return h;}
+function utf16leDecode(bytes){let s='';for(let i=0;i+1<bytes.length;i+=2){const c=bytes[i]|(bytes[i+1]<<8);if(c===0)continue;if(c>=32)s+=String.fromCharCode(c);}return s;}
+function asciiDecode(hex){let s='';for(let i=0;i+1<hex.length;i+=2){const c=parseInt(hex.substr(i,2),16);if(c)s+=String.fromCharCode(c);}return s;}
+function asciiHex(str){let h='';for(let i=0;i<str.length;i++)h+=oneByte(str.charCodeAt(i)&0xff);return h;}
+function crc8(bytes){let i=0;for(const b of bytes){i^=b;for(let k=0;k<8;k++){i=(i&1)?((i>>1)^0x8c):(i>>1);}}return i&0xff;}
+
+function frame(tag, content){
+  let c = content||'';
+  if(c.length<16) c = c.padEnd(16,'0');          // pad to >=8 bytes, matching the app
+  const head = hexToBytes('aa'+tag+c);
+  const out = new Uint8Array(head.length+1);
+  out.set(head); out[head.length]=crc8(head);
+  return out;
+}
+const nameField = name => !name ? '00'
+  : oneByte((utf16leHex(name).length/2)+2) + '5c55' + utf16leHex(name);
+
+/* ---------- command builders ---------- */
+const CMD = {
+  queryParams:   ()=>frame('e0','00'),
+  queryVolume:   ()=>frame('e5','00'),
+  queryName:     ()=>frame('e6','00'),
+  queryFiles:    ()=>frame('d0','00'),
+  queryOrder:    ()=>frame('d1','00'),
+  queryCapacity: ()=>frame('d2','00'),
+  queryLive:     ()=>frame('e1','00'),
+  setVolume:   v   =>frame('fa',oneByte(v)),
+  playPause:   x   =>frame('fc',oneByte(x)),
+  selectFile:(s,p) =>frame('c6',twoByte(s)+oneByte(p)),
+  deleteFile:(s,c) =>frame('c7',twoByte(s)+fourByte(c)),
+  selChannel:  ch  =>frame('f5',ch===-1?'ff':oneByte(ch)),
+  setRGB:(ch,r,g,b,loop)=>frame('f4',(ch===-1?'ff':oneByte(ch))+oneByte(r)+oneByte(g)+oneByte(b)+oneByte(loop)+fourByte(0)+'00'),
+  setBright:(ch,v) =>frame('f3',(ch===-1?'ff':oneByte(ch))+oneByte(v)+fourByte(0)+'00'),
+  setMode:(ch,m)   =>frame('f2',(ch===-1?'ff':oneByte(ch))+oneByte(m)+fourByte(0)+'00'),
+  setSpeed:(ch,v)  =>frame('f6',(ch===-1?'ff':oneByte(ch))+oneByte(v)+fourByte(0)+'00'),
+  setAnim:  a      =>frame('ca',oneByte(a)+'00'+fourByte(0)+'00'),
+  playOrder:(tot,idx,ser,nm)=>frame('c9',oneByte(tot)+oneByte(idx)+twoByte(ser)+nameField(nm)),
+  reset:    ()=>frame('c8','00'),
+  setName:(pin,pwd,name)=>{const full=name+' (Live)';return frame('fb',asciiHex(pin)+asciiHex(pwd)+oneByte(full.length)+asciiHex(full));},
+  startSend:(sz,pk,nm)=>frame('c0',fourByte(sz)+twoByte(pk)+'5c55'+utf16leHex(nm)),
+  sendPacket:(idx,data)=>frame('c1',twoByte(idx)+bytesToHex(data)),
+  endSend:  ()=>frame('c2','00'),
+  renameDone:nm=>frame('c3','5c55'+utf16leHex(nm)),
+  cancelSend:()=>frame('c4','00'),
+  setMouth:(cl,len,data)=>frame('cd',fourByte(cl)+oneByte(len)+data),
+};
+
+/* ---------- connection ---------- */
+const BT = {
+  device:null, server:null, writeCh:null, notifyCh:null, connected:false, busy:false,
+  waiters:[],  // {match(tag,hex), resolve, timer}
+};
+function log(kind,msg){
+  const el=$('#log'); const d=document.createElement('div'); d.className=kind; d.textContent=msg;
+  el.appendChild(d); el.scrollTop=el.scrollHeight;
+  while(el.children.length>400) el.removeChild(el.firstChild);
+}
+function setStatus(txt,cls){ $('#statusTxt').textContent=txt; const dot=$('#dot'); dot.className='dot'+(cls?' '+cls:''); }
+
+async function connect(){
+  if(!navigator.bluetooth){
+    showModal('Bluetooth unavailable',
+      `This browser has no Web Bluetooth. Open this file in <b>Chrome or Edge</b> on a computer or Android phone.
+       (iPhone and Safari don't support it.)`, [{label:'OK'}]);
+    return;
+  }
+  try{
+    log('in','Requesting device…');
+    const opts = $('#allDevices')&&$('#allDevices').checked
+      ? {acceptAllDevices:true, optionalServices:[SVC]}
+      : {filters:PRODUCTS.map(p=>({namePrefix:p})), optionalServices:[SVC]};
+    BT.device = await navigator.bluetooth.requestDevice(opts);
+    BT.device.addEventListener('gattserverdisconnected', onDisconnect);
+    setStatus('Connecting…','busy');
+    BT.server = await BT.device.gatt.connect();
+    const svc = await BT.server.getPrimaryService(SVC);
+    BT.writeCh  = await svc.getCharacteristic(WRITE);
+    BT.notifyCh = await svc.getCharacteristic(NOTIFY);
+    await BT.notifyCh.startNotifications();
+    BT.notifyCh.addEventListener('characteristicvaluechanged', onNotify);
+    BT.connected=true;
+    setStatus(BT.device.name||'Connected','on');
+    log('in','Connected to '+(BT.device.name||'device'));
+    $('#connectBtn').textContent='Disconnect';
+    $('#introNote').hidden=true;
+    setControlsEnabled(true);
+    await refreshAll();
+  }catch(e){
+    log('er','Connect failed: '+e.message);
+    setStatus('Not connected','');
+    if(e.name!=='NotFoundError') // NotFoundError = user cancelled the chooser
+      showModal('Could not connect', escapeHtml(e.message)+
+        '<br><br>Make sure the Santa is powered on and out of demo mode (hold its MODE button ~7s), and that it isn\'t still connected in the official app.',[{label:'OK'}]);
+  }
+}
+function onDisconnect(){
+  BT.connected=false; BT.server=null;
+  setStatus('Disconnected',''); $('#connectBtn').textContent='Connect';
+  setControlsEnabled(false); log('er','Device disconnected.');
+}
+function disconnect(){ if(BT.device&&BT.device.gatt.connected) BT.device.gatt.disconnect(); }
+
+async function send(bytes){
+  if(!BT.connected||!BT.writeCh){ log('er','Not connected.'); return false; }
+  const hex=bytesToHex(bytes);
+  try{
+    if(BT.writeCh.writeValueWithResponse) await BT.writeCh.writeValueWithResponse(bytes);
+    else await BT.writeCh.writeValue(bytes);
+    log('tx','TX '+hex.toUpperCase());
+    return true;
+  }catch(e){ log('er','TX failed '+hex.toUpperCase()+' — '+e.message); return false; }
+}
+// wait for a notification whose first byte(s) match
+function waitFor(prefix, timeout=5000){
+  return new Promise((resolve,reject)=>{
+    const w={prefix:prefix.toLowerCase(),resolve,reject};
+    w.timer=setTimeout(()=>{ BT.waiters=BT.waiters.filter(x=>x!==w); reject(new Error('timeout waiting '+prefix)); },timeout);
+    BT.waiters.push(w);
+  });
+}
+function onNotify(ev){
+  const dv=ev.target.value; const bytes=new Uint8Array(dv.buffer.slice(dv.byteOffset,dv.byteOffset+dv.byteLength));
+  const hex=bytesToHex(bytes);
+  log('rx','RX '+hex.toUpperCase());
+  // resolve waiters
+  BT.waiters=BT.waiters.filter(w=>{ if(hex.startsWith(w.prefix)){clearTimeout(w.timer);w.resolve({hex,bytes});return false;} return true; });
+  try{ parseResponse(hex,bytes); }catch(e){ log('er','parse error: '+e.message); }
+}
+
+/* ---------- device state + response parsing ---------- */
+const state = { volume:null, showMode:0, name:'', capacityKB:null, written:null,
+  tracks:[], order:[], playingSerial:null, playing:false, loadingLib:false, lightColor:0xff3344 };
+
+function parseResponse(hex){
+  const tag=hex.substr(0,4);
+  const n=(a,b)=>parseInt(hex.substring(a,b),16);
+  if(tag==='bbe5'){ state.volume=n(4,6); reflectVolume(); }
+  else if(tag==='bbe0'){
+    state.showMode=n(40,42);
+    const nameLen=n(56,58);
+    state.name=asciiDecode(hex.substring(58,58+nameLen*2));
+    reflectDevice();
+  }
+  else if(tag==='bbe6'){ const l=n(4,6); if(l>0){state.name=asciiDecode(hex.substring(6,6+l*2));reflectDevice();} }
+  else if(tag==='bbd2'){ state.capacityKB=n(4,12); state.written=n(12,14); reflectDevice(); }
+  else if(tag==='bbd0'){ parseFile(hex); }
+  else if(tag==='bbd1'){ const c=n(4,6); const o=[]; for(let i=0;i<c;i++)o.push(n(6+i*4,10+i*4)); state.order=o; renderTracks(); }
+  else if(tag==='bbc6'){ state.playingSerial=n(4,8); state.playing=n(8,10)===1; reflectPlaying(); }
+  else if(tag==='bbc7'){ if(n(4,6)===0){ setTimeout(()=>send(CMD.queryFiles()),300);} }
+  else if(tag==='bbc8'){ /* reset ack */ }
+  else if(tag==='bbe1'){ reflectLiveMovement(hex); }
+}
+function parseFile(hex){
+  // one stored clip per BBD0 frame (Santa = "new page" layout)
+  if(!state.loadingLib){ state.tracks=[]; state.loadingLib=true; }
+  const n=(a,b)=>parseInt(hex.substring(a,b),16);
+  const serial=n(4,8), cluster=n(8,16), total=n(16,20), action=n(24,26), eye=n(110,112);
+  // filename = UTF-16LE of bytes 60 .. end-1 (last byte is CRC)
+  const bytes=hexToBytes(hex);
+  const name=utf16leDecode(bytes.subarray(60,bytes.length-1)).trim();
+  const isStock=/^Default Sound \d*\.mp3$/.test(name);
+  if(!state.tracks.some(t=>t.serial===serial))
+    state.tracks.push({serial,cluster,name,action,eye,isStock});
+  state._total=total;
+  if(state.tracks.length>=total){ state.loadingLib=false; setTimeout(()=>send(CMD.queryOrder()),120); }
+  renderTracks();
+}
+
+/* ---------- refresh ---------- */
+async function refreshAll(){
+  await send(CMD.queryParams());  await delay(200);
+  await send(CMD.queryVolume());  await delay(200);
+  await send(CMD.queryCapacity());await delay(200);
+  state.loadingLib=false;
+  await send(CMD.queryFiles());
+}
+const delay = ms=>new Promise(r=>setTimeout(r,ms));
+
+/* ---------- UI reflect ---------- */
+function reflectVolume(){ if(state.volume==null)return; const s=$('#vol'); s.value=state.volume; $('#volVal').textContent=state.volume; s.style.setProperty('--pct',state.volume+'%'); }
+function reflectDevice(){
+  $('#devName').textContent=state.name||'—';
+  $('#devCap').textContent=state.capacityKB!=null?(state.capacityKB>=1024?(state.capacityKB/1024).toFixed(1)+' MB':state.capacityKB+' KB'):'—';
+  $('#devClips').textContent=state.written!=null?state.written+' / 30':'—';
+  $('#devDemo').textContent=state.showMode===1?'On — hold MODE 7s':'Off';
+  $('#demoState').textContent=state.showMode===1?'Demo mode':'Idle';
+  if(state.name&&!$('#newName').value) $('#newName').value=state.name.replace(/ \(Live\)$/,'');
+}
+function reflectPlaying(){
+  const t=state.tracks.find(t=>t.serial===state.playingSerial);
+  $('#nowPlaying').textContent = (state.playing&&t)? t.name : '—';
+  $('#playBtn').textContent = state.playing?'⏸':'▶';
+  renderTracks();
+}
+function reflectLiveMovement(hex){
+  const action=parseInt(hex.substring(4,6),16);
+  $$('#moveToggles .tog').forEach(b=>{ const bit=+b.dataset.bit; b.setAttribute('aria-pressed', (action&bit)?'true':'false'); });
+}
+
+function renderTracks(){
+  const host=$('#trackList');
+  if(!state.tracks.length){ host.innerHTML='<p class="muted" style="margin:0">No clips found yet. If your Santa has clips, tap Refresh.</p>'; $('#libCount').textContent=''; return; }
+  $('#libCount').textContent=state.tracks.length+' clip'+(state.tracks.length>1?'s':'');
+  const order=state.order||[];
+  host.innerHTML='';
+  state.tracks.forEach(t=>{
+    const inPlay=order.includes(t.serial);
+    const playing=state.playing&&state.playingSerial===t.serial;
+    const row=document.createElement('div'); row.className='track'+(playing?' playing':'');
+    row.innerHTML=`
+      <button class="play" title="Play / stop">${playing?'⏸':'▶'}</button>
+      <div class="grow"><div class="nm">${escapeHtml(t.name)}</div>
+        <div class="meta">${t.isStock?'built-in':'custom'} · clip #${t.serial}</div></div>
+      ${inPlay?'<span class="pill inplay">in rotation</span>':''}
+      <button class="iconbtn star" title="${inPlay?'Remove from rotation':'Add to rotation'}" aria-pressed="${inPlay}">${inPlay?'★':'☆'}</button>
+      <button class="iconbtn del" title="Delete clip" ${t.isStock?'disabled':''}>🗑</button>`;
+    row.querySelector('.play').onclick=()=>togglePlay(t);
+    row.querySelector('.star').onclick=()=>toggleRotation(t);
+    const del=row.querySelector('.del'); if(!t.isStock) del.onclick=()=>confirmDelete(t);
+    host.appendChild(row);
+  });
+}
+function togglePlay(t){
+  const wasPlaying=state.playing&&state.playingSerial===t.serial;
+  send(CMD.selectFile(wasPlaying?0:t.serial, wasPlaying?0:1));
+}
+function toggleRotation(t){
+  let order=(state.order||[]).slice();
+  if(order.includes(t.serial)) order=order.filter(s=>s!==t.serial);
+  else { if(order.length>=10){ showModal('Rotation full','A Santa plays up to 10 clips in rotation. Remove one first.',[{label:'OK'}]); return; } order.push(t.serial); }
+  sendPlayOrder(order);
+}
+async function sendPlayOrder(order){
+  state.order=order; renderTracks();
+  if(order.length===0){ await send(CMD.playOrder(0,0,0,'0')); }
+  else { for(let i=0;i<order.length;i++){ const t=state.tracks.find(x=>x.serial===order[i]); await send(CMD.playOrder(order.length,i+1,order[i],t?t.name:'')); await delay(120);} }
+  await delay(300); send(CMD.queryOrder());
+}
+function confirmDelete(t){
+  showModal('Delete this clip?', `"<b>${escapeHtml(t.name)}</b>" will be erased from the Santa for good.`,
+    [{label:'Cancel'},{label:'Delete',cls:'danger',act:()=>send(CMD.deleteFile(t.serial,t.cluster))}]);
+}
+
+/* ---------- transport ---------- */
+$('#playBtn').onclick=()=>{ if(state.playingSerial!=null){ const t=state.tracks.find(x=>x.serial===state.playingSerial); if(t){togglePlay(t);return;} } const first=(state.order&&state.order[0])??(state.tracks[0]&&state.tracks[0].serial); if(first!=null) send(CMD.selectFile(first,1)); };
+function step(dir){ const list=(state.order&&state.order.length)?state.order:state.tracks.map(t=>t.serial); if(!list.length)return; let idx=list.indexOf(state.playingSerial); idx=(idx+dir+list.length)%list.length; send(CMD.selectFile(list[idx],1)); }
+$('#prevBtn').onclick=()=>step(-1);
+$('#nextBtn').onclick=()=>step(1);
+
+/* ---------- volume ---------- */
+let volT=null;
+$('#vol').oninput=e=>{ const v=+e.target.value; $('#volVal').textContent=v; e.target.style.setProperty('--pct',v+'%'); clearTimeout(volT); volT=setTimeout(()=>send(CMD.setVolume(v)),120); };
+
+/* ---------- lights ---------- */
+const PALETTES = {
+  custom:[0xffffff,0xff2d2d,0xff7a00,0xffd400,0x37d35a,0x00b3ff,0x2d5bff,0x9b4dff,0xff4da6,0xff8f6b,0x00e0c0,0xb0ff00],
+  hall:[0xfd942a,0x7637fd,0xff5a00,0x9b00ff,0x00ff66,0xff0033],
+  xmas:[0x960100,0x036400,0xffffff,0xd4af37,0xff2d2d,0x2fa84a],
+};
+let curScene='custom', curMode=1;
+function buildSwatches(){
+  const host=$('#swatches'); host.innerHTML='';
+  PALETTES[curScene].forEach(col=>{
+    const b=document.createElement('button'); b.className='swatch'; b.style.background='#'+col.toString(16).padStart(6,'0');
+    b.setAttribute('aria-pressed', col===state.lightColor?'true':'false'); b.title='#'+col.toString(16).padStart(6,'0');
+    b.onclick=()=>{ state.lightColor=col; buildSwatches(); const r=(col>>16)&255,g=(col>>8)&255,bl=col&255; send(CMD.setRGB(-1,r,g,bl,0)); };
+    host.appendChild(b);
+  });
+}
+$('#scenes').onclick=e=>{ const b=e.target.closest('button'); if(!b)return; curScene=b.dataset.scene;
+  $$('#scenes button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false')); buildSwatches(); };
+$('#modeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return; curMode=+b.dataset.mode;
+  $$('#modeSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+  $('#speedField').style.opacity=curMode===1?'.45':'1'; send(CMD.setMode(-1,curMode)); };
+let briT=null; $('#bri').oninput=e=>{ const v=+e.target.value; $('#briVal').textContent=Math.round(v/255*100)+'%'; e.target.style.setProperty('--pct',(v/255*100)+'%'); clearTimeout(briT); briT=setTimeout(()=>send(CMD.setBright(-1,v)),120); };
+let spdT=null; $('#spd').oninput=e=>{ const v=+e.target.value; $('#spdVal').textContent=v; e.target.style.setProperty('--pct',(v/10*100)+'%'); clearTimeout(spdT); spdT=setTimeout(()=>send(CMD.setSpeed(-1,v)),120); };
+
+/* ---------- movement ---------- */
+function buildMovement(){
+  const host=$('#moveToggles'); host.innerHTML='';
+  MOVE_ACTIONS.forEach(a=>{
+    const b=document.createElement('button'); b.className='tog'; b.dataset.bit=a.bit; b.setAttribute('aria-pressed','true');
+    b.innerHTML=`<span class="ic">${a.ic}</span>${a.name}`;
+    b.onclick=()=>{ b.setAttribute('aria-pressed', b.getAttribute('aria-pressed')==='true'?'false':'true'); sendMovement(); };
+    host.appendChild(b);
+  });
+}
+function currentAction(){ let a=0; $$('#moveToggles .tog').forEach(b=>{ if(b.getAttribute('aria-pressed')==='true')a|=+b.dataset.bit; }); return a; }
+function sendMovement(){ send(CMD.setAnim(currentAction())); }
+$('#moveAll').onclick=()=>{ $$('#moveToggles .tog').forEach(b=>b.setAttribute('aria-pressed','true')); send(CMD.setAnim(255)); };
+$('#moveNone').onclick=()=>{ $$('#moveToggles .tog').forEach(b=>b.setAttribute('aria-pressed','false')); send(CMD.setAnim(0)); };
+
+/* ---------- settings ---------- */
+$('#renameBtn').onclick=()=>{ const nm=$('#newName').value.trim(), pin=$('#pin').value.trim();
+  if(!nm)return showModal('Name needed','Enter a name for the speaker.',[{label:'OK'}]);
+  if(pin.length<4)return showModal('PIN too short','Use a PIN of at least 4 digits.',[{label:'OK'}]);
+  send(CMD.setName(pin,'01234567',nm)); showToast('Rename sent — the speaker will re-pair.'); };
+$('#resetBtn').onclick=()=>showModal('Erase everything?',
+  'This runs the Santa\'s factory reset: <b>every custom clip you added will be deleted.</b> Built-in clips stay.',
+  [{label:'Cancel'},{label:'Erase & reset',cls:'danger',act:()=>{send(CMD.reset());showToast('Reset sent.');}}]);
+
+/* ---------- theme ---------- */
+$('#themeSeg').onclick=e=>{ const b=e.target.closest('button'); if(!b)return;
+  $$('#themeSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));
+  const th=b.dataset.th; if(th==='auto')document.documentElement.removeAttribute('data-theme'); else document.documentElement.setAttribute('data-theme',th);
+  try{localStorage.setItem('santaTheme',th);}catch(e){} };
+try{const t=localStorage.getItem('santaTheme'); if(t&&t!=='auto'){document.documentElement.setAttribute('data-theme',t); $$('#themeSeg button').forEach(x=>x.setAttribute('aria-pressed',x.dataset.th===t?'true':'false'));}}catch(e){}
+
+/* ---------- tabs ---------- */
+$$('.tab').forEach(tab=>tab.onclick=()=>{
+  $$('.tab').forEach(t=>t.setAttribute('aria-selected',t===tab?'true':'false'));
+  $$('.panel-view').forEach(v=>v.hidden=true);
+  $('#view-'+tab.dataset.tab).hidden=false;
+});
+
+/* ---------- enable/disable ---------- */
+function setControlsEnabled(on){
+  ['#vol','#refreshLib','#playBtn','#prevBtn','#nextBtn','#renameBtn','#resetBtn'].forEach(s=>{const e=$(s);if(e)e.disabled=!on;});
+  $('#view-lights').classList.toggle('disabledmask',!on);
+  $('#view-move').classList.toggle('disabledmask',!on);
+  updateUploadBtn();
+}
+$('#refreshLib').onclick=()=>{ state.loadingLib=false; send(CMD.queryFiles()); send(CMD.queryCapacity()); };
+$('#connectBtn').onclick=()=>BT.connected?disconnect():connect();
+
+/* ============================================================
+   VOICE STUDIO
+   ============================================================ */
+let srcBuffer=null;        // decoded AudioBuffer of the source
+let shapedBlob=null;       // processed mp3 blob ready to send
+let mediaRec=null, recChunks=[], recStream=null, acx=null;
+function audioCtx(){ if(!acx)acx=new (window.AudioContext||window.webkitAudioContext)(); return acx; }
+
+$('#pickBtn').onclick=()=>$('#fileInput').click();
+$('#fileInput').onchange=async e=>{ const f=e.target.files[0]; if(f) await loadSource(await f.arrayBuffer(), f.name); };
+
+$('#recBtn').onclick=async()=>{
+  if(mediaRec&&mediaRec.state==='recording'){ mediaRec.stop(); return; }
+  try{
+    recStream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}});
+    recChunks=[]; mediaRec=new MediaRecorder(recStream);
+    mediaRec.ondataavailable=ev=>{ if(ev.data.size)recChunks.push(ev.data); };
+    mediaRec.onstop=async()=>{ recStream.getTracks().forEach(t=>t.stop());
+      $('#recBtn').classList.remove('rec'); $('#recBtn').textContent='● Record'; $('#recHint').textContent='Processing…';
+      const blob=new Blob(recChunks,{type:recChunks[0]?.type||'audio/webm'});
+      await loadSource(await blob.arrayBuffer(),'recording'); };
+    mediaRec.start(); $('#recBtn').textContent='■ Stop'; $('#recBtn').classList.add('rec'); $('#recHint').textContent='Recording… tap Stop when done.';
+  }catch(e){ showModal('Microphone blocked','Couldn\'t start recording: '+escapeHtml(e.message)+'<br><br>You can choose an audio file instead.',[{label:'OK'}]); }
+};
+
+async function loadSource(arrayBuf, label){
+  try{
+    srcBuffer=await audioCtx().decodeAudioData(arrayBuf.slice(0));
+  }catch(e){ showModal('Could not read audio','That file couldn\'t be decoded ('+escapeHtml(e.message)+'). Try an MP3, WAV, or M4A.',[{label:'OK'}]); return; }
+  shapedBlob=null;
+  $('#srcRow').hidden=false; $('#previewShaped').disabled=false; $('#elConvert').disabled=!$('#elVoice').value||$('#elVoice').disabled;
+  $('#srcInfo').textContent=`${label} · ${srcBuffer.duration.toFixed(1)}s · ${srcBuffer.sampleRate} Hz`;
+  $('#recHint').textContent='Shape it below, then send.';
+  if(!$('#clipName').value){ const base=(label.replace(/\.[^.]+$/,'')||'My Santa').slice(0,15); $('#clipName').value=base; }
+  drawWave(srcBuffer);
+  updateUploadBtn();
+}
+function drawWave(buf){
+  const cv=$('#wave'); cv.hidden=false; const ctx=cv.getContext('2d'); const W=cv.width,H=cv.height;
+  const data=buf.getChannelData(0); const step=Math.floor(data.length/W)||1;
+  ctx.clearRect(0,0,W,H); const cs=getComputedStyle(document.body);
+  ctx.strokeStyle=cs.getPropertyValue('--gold').trim()||'#e6b23e'; ctx.lineWidth=1; ctx.beginPath();
+  for(let x=0;x<W;x++){ let mn=1,mx=-1; for(let i=0;i<step;i++){const v=data[x*step+i]||0; if(v<mn)mn=v; if(v>mx)mx=v;} ctx.moveTo(x,(1-(mx+1)/2)*H); ctx.lineTo(x,(1-(mn+1)/2)*H); }
+  ctx.stroke();
+}
+
+/* shaping params */
+let gateLevel=0;
+$('#gateSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;gateLevel=+b.dataset.g;$$('#gateSeg button').forEach(x=>x.setAttribute('aria-pressed',x===b?'true':'false'));};
+$('#pitch').oninput=e=>{ $('#pitchVal').textContent=(e.target.value>0?'+':'')+e.target.value; e.target.style.setProperty('--pct',((+e.target.value+6)/10*100)+'%'); };
+$('#warmth').oninput=e=>{ $('#warmthVal').textContent=e.target.value+'%'; e.target.style.setProperty('--pct',e.target.value+'%'); };
+
+async function renderShaped(){
+  if(!srcBuffer) return null;
+  const semitones=+$('#pitch').value, warmth=+$('#warmth').value/100, gate=gateLevel, norm=$('#normChk').checked;
+  const rate=Math.pow(2,semitones/12);                       // pitch via playback rate (also shifts tempo)
+  const outRate=22050;                                        // device-friendly mono rate
+  const srcLen=srcBuffer.length;
+  const outLen=Math.ceil(srcLen/rate * (outRate/srcBuffer.sampleRate));
+  const off=new OfflineAudioContext(1,Math.max(outLen,1),outRate);
+  const src=off.createBufferSource(); src.buffer=srcBuffer; src.playbackRate.value=rate;
+  // warmth: low-shelf boost + gentle high cut
+  const low=off.createBiquadFilter(); low.type='lowshelf'; low.frequency.value=320; low.gain.value=warmth*9;
+  const high=off.createBiquadFilter(); high.type='highshelf'; high.frequency.value=4200; high.gain.value=-warmth*7;
+  const comp=off.createDynamicsCompressor(); comp.threshold.value=-20; comp.ratio.value=3; comp.attack.value=.004; comp.release.value=.18;
+  src.connect(low); low.connect(high); high.connect(comp); comp.connect(off.destination);
+  src.start();
+  const rendered=await off.startRendering();
+  let pcm=rendered.getChannelData(0).slice();
+  // noise gate
+  if(gate>0){ const thr=gate===1?0.012:0.03; const win=Math.floor(outRate*0.02); for(let i=0;i<pcm.length;i+=win){let peak=0;for(let j=0;j<win&&i+j<pcm.length;j++)peak=Math.max(peak,Math.abs(pcm[i+j]));if(peak<thr)for(let j=0;j<win&&i+j<pcm.length;j++)pcm[i+j]*=0.06;} }
+  // normalize
+  if(norm){ let peak=0;for(let i=0;i<pcm.length;i++)peak=Math.max(peak,Math.abs(pcm[i]));if(peak>0){const g=0.97/peak;for(let i=0;i<pcm.length;i++)pcm[i]*=g;} }
+  return {pcm,rate:outRate};
+}
+async function pcmToMp3Blob(pcm,sampleRate){
+  await ensureLame();
+  const enc=new lamejs.Mp3Encoder(1,sampleRate,64);
+  const samples=new Int16Array(pcm.length);
+  for(let i=0;i<pcm.length;i++){let s=Math.max(-1,Math.min(1,pcm[i]));samples[i]=s<0?s*0x8000:s*0x7fff;}
+  const block=1152; const out=[];
+  for(let i=0;i<samples.length;i+=block){const buf=enc.encodeBuffer(samples.subarray(i,i+block));if(buf.length)out.push(new Uint8Array(buf));}
+  const end=enc.flush(); if(end.length)out.push(new Uint8Array(end));
+  return new Blob(out,{type:'audio/mpeg'});
+}
+let lameReady=null;
+function ensureLame(){
+  if(window.lamejs) return Promise.resolve();
+  if(lameReady) return lameReady;
+  lameReady=new Promise((res,rej)=>{ const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('Could not load the MP3 encoder (needs internet on first use).'));
+    document.head.appendChild(s); });
+  return lameReady;
+}
+
+$('#previewSrc').onclick=()=>playBuffer(srcBuffer);
+$('#previewShaped').onclick=async()=>{
+  try{ $('#previewShaped').disabled=true; $('#previewShaped').textContent='Rendering…';
+    const r=await renderShaped(); const buf=audioCtx().createBuffer(1,r.pcm.length,r.rate); buf.copyToChannel(r.pcm,0); playBuffer(buf);
+  }catch(e){ showModal('Preview failed',escapeHtml(e.message),[{label:'OK'}]); }
+  finally{ $('#previewShaped').disabled=false; $('#previewShaped').textContent='▶ Preview result'; }
+};
+let previewSrcNode=null;
+function playBuffer(buf){ if(!buf)return; const c=audioCtx(); if(c.state==='suspended')c.resume(); if(previewSrcNode){try{previewSrcNode.stop();}catch(e){}} const n=c.createBufferSource(); n.buffer=buf; n.connect(c.destination); n.start(); previewSrcNode=n; }
+
+/* ElevenLabs (optional, user key) */
+$('#elLoad').onclick=async()=>{
+  const key=$('#elKey').value.trim(); if(!key)return showModal('Key needed','Paste your ElevenLabs API key first.',[{label:'OK'}]);
+  $('#elLoad').disabled=true; $('#elLoad').textContent='Loading…';
+  try{
+    const r=await fetch('https://api.elevenlabs.io/v1/voices',{headers:{'xi-api-key':key}});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json(); const sel=$('#elVoice'); sel.innerHTML=''; sel.disabled=false;
+    (j.voices||[]).forEach(v=>{const o=document.createElement('option');o.value=v.voice_id;o.textContent=v.name;sel.appendChild(o);});
+    $('#elConvert').disabled=!srcBuffer; showToast('Loaded '+(j.voices?.length||0)+' voices.');
+  }catch(e){ showModal('Couldn\'t load voices','ElevenLabs request failed: '+escapeHtml(e.message)+'. Check the key.',[{label:'OK'}]); }
+  finally{ $('#elLoad').disabled=false; $('#elLoad').textContent='Load my voices'; }
+};
+$('#elVoice').onchange=()=>{ $('#elConvert').disabled=!srcBuffer; };
+$('#elConvert').onclick=async()=>{
+  const key=$('#elKey').value.trim(), voice=$('#elVoice').value; if(!srcBuffer||!voice)return;
+  $('#elConvert').disabled=true; $('#elConvert').textContent='Converting…';
+  try{
+    const wav=await bufferToWavBlob(srcBuffer);
+    const fd=new FormData(); fd.append('audio',wav,'source.wav'); fd.append('model_id','eleven_english_sts_v2');
+    const r=await fetch('https://api.elevenlabs.io/v1/speech-to-speech/'+voice+'?output_format=mp3_22050_32',
+      {method:'POST',headers:{'xi-api-key':key},body:fd});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const mp3=await r.blob(); await loadSource(await mp3.arrayBuffer(),'elevenlabs'); showToast('Converted — tweak and send.');
+  }catch(e){ showModal('Conversion failed',escapeHtml(e.message),[{label:'OK'}]); }
+  finally{ $('#elConvert').textContent='Convert source with this voice →'; $('#elConvert').disabled=false; }
+};
+function bufferToWavBlob(buf){ // mono 16-bit
+  const rate=buf.sampleRate, d=buf.getChannelData(0), len=d.length;
+  const ab=new ArrayBuffer(44+len*2), v=new DataView(ab); let o=0;
+  const str=s=>{for(let i=0;i<s.length;i++)v.setUint8(o++,s.charCodeAt(i));};
+  const u32=n=>{v.setUint32(o,n,true);o+=4;}, u16=n=>{v.setUint16(o,n,true);o+=2;};
+  str('RIFF');u32(36+len*2);str('WAVE');str('fmt ');u32(16);u16(1);u16(1);u32(rate);u32(rate*2);u16(2);u16(16);str('data');u32(len*2);
+  for(let i=0;i<len;i++){let s=Math.max(-1,Math.min(1,d[i]));v.setInt16(o,s<0?s*0x8000:s*0x7fff,true);o+=2;}
+  return Promise.resolve(new Blob([ab],{type:'audio/wav'}));
+}
+
+/* mouth-sync bits from PCM (60ms frames, LSB-first packing) */
+function mouthData(pcm,rate){
+  const per=Math.floor(rate*0.06)||1; const frames=Math.ceil(pcm.length/per); const maxes=new Float32Array(frames);
+  for(let f=0;f<frames;f++){let m=0;for(let i=0;i<per;i++){const v=Math.abs(pcm[f*per+i]||0);if(v>m)m=v;}maxes[f]=m;}
+  let avg=0;for(const m of maxes)avg+=m; avg/=(frames||1);
+  const bytes=[]; for(let f=0;f<frames;f+=8){let b=0;for(let k=0;k<8;k++){const bit=(maxes[f+k]!=null&&maxes[f+k]>avg)?1:0;b|=bit<<k;}bytes.push(b);}
+  return {len:bytes.length, hex:bytes.map(b=>b.toString(16).padStart(2,'0')).join('').toUpperCase()};
+}
+
+/* ---------- upload ---------- */
+function updateUploadBtn(){ $('#uploadBtn').disabled=!(BT.connected&&srcBuffer); }
+['#pitch','#warmth','#normChk'].forEach(s=>{const e=$(s);if(e)e.addEventListener('input',()=>{shapedBlob=null;});});
+
+$('#uploadBtn').onclick=async()=>{
+  if(!BT.connected||!srcBuffer)return;
+  if(state.showMode===1)return showModal('Santa is in demo mode','Take it out of demo mode first: hold the MODE button on the figure about 7 seconds, then reconnect.',[{label:'OK'}]);
+  let name=($('#clipName').value.trim()||'My Santa').slice(0,15).replace(/[^\w \-]/g,'');
+  const fileName=name+'.mp3';
+  const prog=$('#upProg'); prog.hidden=false; const setP=(p,m)=>{$('#upBar').style.width=p+'%';$('#upPct').textContent=Math.round(p)+'%';if(m)$('#upMsg').textContent=m;};
+  $('#uploadBtn').disabled=true;
+  try{
+    setP(2,'Shaping audio…');
+    const r=await renderShaped();
+    setP(8,'Encoding MP3…');
+    const blob=await pcmToMp3Blob(r.pcm,r.rate);
+    const bytes=new Uint8Array(await blob.arrayBuffer());
+    const mouth=$('#mouthChk').checked?mouthData(r.pcm,r.rate):null;
+
+    // capacity check
+    await send(CMD.queryCapacity()); await delay(400);
+    if(state.capacityKB!=null && Math.ceil(bytes.length/1000)>=state.capacityKB)
+      throw new Error('Not enough space on the Santa for this clip.');
+    if(state.written!=null && state.written>=30) throw new Error('The Santa already holds 30 clips (its max). Delete one first.');
+
+    const CHUNK=180; const total=Math.ceil(bytes.length/CHUNK);
+    setP(10,'Opening transfer…');
+    await send(CMD.startSend(bytes.length,total,fileName));
+    const c0=await waitFor('bbc0',6000); if(parseInt(c0.hex.substring(4,6),16)!==0) throw new Error('Santa refused the transfer.');
+
+    // listen for packet-loss resume requests
+    let resumeFrom=-1;
+    const lossHandler=({target})=>{ const dv=target.value; const h=bytesToHex(new Uint8Array(dv.buffer.slice(dv.byteOffset,dv.byteOffset+dv.byteLength))); if(h.startsWith('bbc1')&&parseInt(h.substring(4,6),16)===1) resumeFrom=parseInt(h.substring(6,10),16); };
+    BT.notifyCh.addEventListener('characteristicvaluechanged',lossHandler);
+
+    for(let i=0;i<total;i++){
+      const slice=bytes.subarray(i*CHUNK,Math.min(bytes.length,(i+1)*CHUNK));
+      await send(CMD.sendPacket(i,slice));
+      if(resumeFrom>=0 && resumeFrom<i){ i=resumeFrom-1; resumeFrom=-1; }   // device asked to resume
+      setP(10+ (i/total)*78, 'Sending… '+(i+1)+'/'+total);
+    }
+    BT.notifyCh.removeEventListener('characteristicvaluechanged',lossHandler);
+
+    setP(90,'Finishing…');
+    await send(CMD.endSend()); await waitFor('bbc2',6000);
+    await send(CMD.renameDone(fileName)); await waitFor('bbc3',6000);
+
+    // mouth sync (needs the new clip's cluster → re-read library)
+    if(mouth){ setP(94,'Syncing mouth…'); state.loadingLib=false; await send(CMD.queryFiles()); await delay(900);
+      const t=state.tracks.find(x=>x.name===fileName||x.name===name);
+      if(t) await send(CMD.setMouth(t.cluster,mouth.len,mouth.hex)); }
+
+    setP(100,'Done!'); showToast('"'+name+'" is on your Santa.');
+    state.loadingLib=false; await send(CMD.queryFiles()); await send(CMD.queryCapacity());
+    setTimeout(()=>{prog.hidden=true;setP(0);},1800);
+  }catch(e){
+    log('er','Upload failed: '+e.message);
+    try{await send(CMD.cancelSend());}catch(_){}
+    showModal('Upload didn\'t finish',escapeHtml(e.message)+'<br><br>Nothing partial is kept — you can try again.',[{label:'OK'}]);
+    prog.hidden=true;
+  }finally{ $('#uploadBtn').disabled=false; updateUploadBtn(); }
+};
+
+/* ---------- modal + toast ---------- */
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function showModal(title,html,buttons){
+  const host=$('#modalHost'); host.innerHTML='';
+  const scrim=document.createElement('div'); scrim.className='scrim';
+  const m=document.createElement('div'); m.className='modal'; m.setAttribute('role','dialog'); m.setAttribute('aria-modal','true');
+  m.innerHTML=`<h3>${escapeHtml(title)}</h3><div class="muted" style="font-size:.9rem">${html}</div>`;
+  const row=document.createElement('div'); row.className='spread'; row.style.justifyContent='flex-end';
+  (buttons||[{label:'OK'}]).forEach(b=>{const btn=document.createElement('button');btn.className='btn '+(b.cls||'ghost');btn.textContent=b.label;
+    btn.onclick=()=>{host.innerHTML='';if(b.act)b.act();}; row.appendChild(btn);});
+  m.appendChild(row); scrim.appendChild(m); host.appendChild(scrim);
+  scrim.onclick=e=>{if(e.target===scrim)host.innerHTML='';};
+}
+let toastT=null;
+function showToast(msg){
+  let t=$('#toast'); if(!t){t=document.createElement('div');t.id='toast';t.style.cssText='position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--pine);color:var(--pine-ink);font-weight:650;padding:11px 18px;border-radius:999px;z-index:120;box-shadow:var(--shadow);max-width:90vw;text-align:center';document.body.appendChild(t);}
+  t.textContent=msg; t.style.opacity='1'; clearTimeout(toastT); toastT=setTimeout(()=>{t.style.transition='opacity .4s';t.style.opacity='0';},2600);
+}
+
+/* ---------- boot ---------- */
+buildSwatches(); buildMovement(); setControlsEnabled(false);
+$('#vol').style.setProperty('--pct','60%'); $('#bri').style.setProperty('--pct','100%'); $('#spd').style.setProperty('--pct','50%');
+$('#pitch').style.setProperty('--pct','60%'); $('#warmth').style.setProperty('--pct','40%');
+</script>
+</body>
+</html>
